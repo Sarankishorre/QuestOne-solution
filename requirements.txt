@@ -1,0 +1,4 @@
+openai-whisper
+rapidfuzz
+opencv-python
+yt-dlp
