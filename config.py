@@ -3,7 +3,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "output"
 
-DEFAULT_VIDEO_URL = "https://youtu.be/NPX39xzhtr8"
+DEFAULT_VIDEO_URL = "https://huggingface.co/datasets/sarankishore1912/questone-videos/resolve/main/3716271639269.mp4"
 DEFAULT_TARGET_DIALOGUE = "My mind rebels at stagnation"
 
 WHISPER_MODEL_SIZE = "base"          # tiny/base/small/medium/large-v3

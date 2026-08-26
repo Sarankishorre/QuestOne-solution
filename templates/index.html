@@ -108,8 +108,8 @@
 
     const PRESETS = [
       {
-        title: "Sherlock Holmes (ok.ru re-upload)",
-        url: "https://youtu.be/NPX39xzhtr8",
+        title: "Sherlock Holmes (Hugging Face Mirror)",
+        url: "https://huggingface.co/datasets/sarankishore1912/questone-videos/resolve/main/3716271639269.mp4",
         dialogue: "My mind rebels at stagnation",
         tag: "Target Task"
       },
@@ -122,7 +122,7 @@
     ];
 
     function App() {
-      const [videoUrl, setVideoUrl] = useState("https://youtu.be/NPX39xzhtr8");
+      const [videoUrl, setVideoUrl] = useState("https://huggingface.co/datasets/sarankishore1912/questone-videos/resolve/main/3716271639269.mp4");
       const [targetDialogue, setTargetDialogue] = useState("My mind rebels at stagnation");
       const [status, setStatus] = useState("idle"); // idle | running | completed | error
       const [progress, setProgress] = useState(0);
@@ -273,14 +273,14 @@
                   <span className="text-xs text-slate-400">Enter stream & dialogue</span>
                 </div>
 
-                {/* ok.ru Re-upload Notice Banner */}
-                <div className="mb-5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200/90 text-xs flex items-start gap-2.5">
-                  <svg className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                {/* ok.ru Hugging Face Mirror Notice Banner */}
+                <div className="mb-5 p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-200/90 text-xs flex items-start gap-2.5">
+                  <svg className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <div className="leading-relaxed">
-                    <span className="font-semibold text-amber-300">Notice: </span>
-                    The <span className="font-mono text-[11px] bg-amber-500/20 px-1 py-0.5 rounded text-amber-200">ok.ru</span> video has been downloaded and uploaded to YouTube (<a href="https://youtu.be/NPX39xzhtr8" target="_blank" rel="noreferrer" className="underline text-sky-400 hover:text-sky-300 font-mono">https://youtu.be/NPX39xzhtr8</a>) since <span className="font-mono text-[11px]">ok.ru</span> blocks direct requests.
+                    <span className="font-semibold text-indigo-300">Default Stream: </span>
+                    Configured with the direct Hugging Face mirror of the target <span className="font-mono text-[11px] bg-indigo-500/20 px-1 py-0.5 rounded text-indigo-200">ok.ru</span> video for fast and reliable downloads.
                   </div>
                 </div>
 
@@ -293,7 +293,7 @@
                       </label>
                       <button
                         type="button"
-                        onClick={() => setVideoUrl("https://youtu.be/NPX39xzhtr8")}
+                        onClick={() => setVideoUrl("https://huggingface.co/datasets/sarankishore1912/questone-videos/resolve/main/3716271639269.mp4")}
                         className="text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors"
                       >
                         Reset to Default
@@ -309,7 +309,7 @@
                         type="url"
                         value={videoUrl}
                         onChange={(e) => setVideoUrl(e.target.value)}
-                        placeholder="https://youtu.be/NPX39xzhtr8"
+                        placeholder="https://huggingface.co/datasets/sarankishore1912/questone-videos/resolve/main/3716271639269.mp4"
                         required
                         disabled={status === "running"}
                         className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all font-mono text-xs"

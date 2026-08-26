@@ -1,16 +1,18 @@
-import whisper
 from pathlib import Path
 from typing import Optional
+import torch
+import whisper
 from rapidfuzz import fuzz
 
 class DialogueTranscriber:
     _model_cache = {}
 
     def __init__(self, model_size: str = "base"):
-        # Cache model instance to prevent disk reloads on every request
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
         if model_size not in DialogueTranscriber._model_cache:
-            print(f"[-] Loading Whisper model '{model_size}' into RAM...")
-            DialogueTranscriber._model_cache[model_size] = whisper.load_model(model_size)
+            print(f"[-] Loading Whisper model '{model_size}' onto device '{self.device}'...")
+            DialogueTranscriber._model_cache[model_size] = whisper.load_model(model_size, device=self.device)
         else:
             print(f"[+] Reusing cached Whisper model '{model_size}'")
             
@@ -18,7 +20,9 @@ class DialogueTranscriber:
 
     def locate_phrase(self, audio_path: Path, target_phrase: str, threshold: int = 75) -> dict:
         print("[-] Transcribing audio (word-level timestamps)...")
-        result = self.model.transcribe(str(audio_path), word_timestamps=True, fp16=False)
+        
+        use_fp16 = True if self.device == "cuda" else False
+        result = self.model.transcribe(str(audio_path), word_timestamps=True, fp16=use_fp16)
 
         words: list[dict] = []
         for segment in result.get("segments", []):
@@ -75,3 +79,71 @@ class DialogueTranscriber:
         print(f"[+] Match found: \"{best_text}\" (score={best_score:.1f}) at {midpoint:.2f}s")
 
         return {"start": best_start, "end": best_end, "midpoint": midpoint, "score": best_score, "text": best_text}
+
+
+def get_or_download_media(url: str, output_dir: Path, filename: str = "temp_video.mp4") -> Path:
+    """Checks the output directory for existing temp_video.mp4 or temp_audio.wav."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    target_path = output_dir / filename
+    audio_fallback = output_dir / "temp_audio.wav"
+
+    # Priority 1: Use temp_video.mp4 if it exists
+    if target_path.exists() and target_path.stat().st_size > 0:
+        print(f"[+] Found existing video at '{target_path}'. Skipping download.")
+        return target_path
+
+    # Priority 2: Fallback to temp_audio.wav if video isn't there
+    if audio_fallback.exists() and audio_fallback.stat().st_size > 0:
+        print(f"[+] Found existing audio at '{audio_fallback}'. Skipping download.")
+        return audio_fallback
+
+    # Priority 3: Download if neither file is present
+    print(f"[-] No media found in '{output_dir}'. Downloading from {url}...")
+    
+    # Place your download execution code here (e.g., yt-dlp)
+    
+    return target_path
+
+
+if __name__ == "__main__":
+    import sys
+    
+    project_root = Path(__file__).resolve().parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
+    try:
+        import config
+        default_url = config.DEFAULT_VIDEO_URL
+        default_phrase = config.DEFAULT_TARGET_DIALOGUE
+        output_directory = config.OUTPUT_DIR
+    except Exception:
+        default_url = "https://huggingface.co/datasets/sarankishore1912/questone-videos/resolve/main/3716271639269.mp4"
+        default_phrase = "My mind rebels at stagnation"
+        output_directory = Path("output")
+
+    media_filename = "temp_video.mp4"  # Matches your output directory layout
+
+    # Interactive input prompts
+    user_url = input(f"Enter video URL [Press Enter for default: '{default_url}']: ").strip()
+    source_url = user_url if user_url else default_url
+
+    user_phrase = input(f"Enter search phrase [Press Enter for default: '{default_phrase}']: ").strip()
+    search_phrase = user_phrase if user_phrase else default_phrase
+
+    print(f"\n[-] Target URL   : {source_url}")
+    print(f"[-] Search Phrase: \"{search_phrase}\"\n")
+
+    # Step 1: Look for temp_video.mp4 or temp_audio.wav in output/
+    media_file_path = get_or_download_media(
+        url=source_url, 
+        output_dir=output_directory, 
+        filename=media_filename
+    )
+
+    # Step 2: Run transcription on the resolved path
+    transcriber = DialogueTranscriber(model_size="base")
+    location_data = transcriber.locate_phrase(media_file_path, target_phrase=search_phrase)
+    
+    print("\nResults:", location_data)
