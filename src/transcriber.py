@@ -3,11 +3,18 @@ from pathlib import Path
 from typing import Optional
 from rapidfuzz import fuzz
 
-
 class DialogueTranscriber:
-    def __init__(self, model_size: str = "medium"):
-        print(f"[-] Loading Whisper model '{model_size}'...")
-        self.model = whisper.load_model(model_size)
+    _model_cache = {}
+
+    def __init__(self, model_size: str = "base"):
+        # Cache model instance to prevent disk reloads on every request
+        if model_size not in DialogueTranscriber._model_cache:
+            print(f"[-] Loading Whisper model '{model_size}' into RAM...")
+            DialogueTranscriber._model_cache[model_size] = whisper.load_model(model_size)
+        else:
+            print(f"[+] Reusing cached Whisper model '{model_size}'")
+            
+        self.model = DialogueTranscriber._model_cache[model_size]
 
     def locate_phrase(self, audio_path: Path, target_phrase: str, threshold: int = 75) -> dict:
         print("[-] Transcribing audio (word-level timestamps)...")
@@ -42,9 +49,6 @@ class DialogueTranscriber:
             raise RuntimeError("No words transcribed — audio may be silent or unreadable.")
 
         target_len = len(target_phrase.split())
-
-        # Explicit, single-typed variables instead of a mixed-type dict —
-        # this is what removes the cascading type-checker errors.
         best_score: float = 0.0
         best_start: Optional[float] = None
         best_end: Optional[float] = None
@@ -70,4 +74,4 @@ class DialogueTranscriber:
         midpoint = (best_start + best_end) / 2
         print(f"[+] Match found: \"{best_text}\" (score={best_score:.1f}) at {midpoint:.2f}s")
 
-        return {"start": best_start, "end": best_end, "midpoint": midpoint, "score": best_score}
+        return {"start": best_start, "end": best_end, "midpoint": midpoint, "score": best_score, "text": best_text}

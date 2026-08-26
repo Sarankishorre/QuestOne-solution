@@ -1,42 +1,51 @@
 from pathlib import Path
-import yt_dlp
-import traceback
 import subprocess
+import traceback
+import yt_dlp
 
 class AudioExtractor:
     @staticmethod
     def extract_audio(video_url: str, output_audio_path: Path, output_video_path: Path):
-        print(f"[-] Step 1: Downloading stream from YouTube: {video_url}")
+        print(f"[-] Step 1: Downloading stream: {video_url}")
         output_video_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Clean up any leftover partial files to avoid format/container conflicts
-        if output_video_path.exists():
-            output_video_path.unlink()
+        # Clean up old temporary files from prior runs
+        for old_file in output_video_path.parent.glob("temp_video*"):
+            try:
+                old_file.unlink()
+            except Exception:
+                pass
+                
+        if output_audio_path.exists():
+            try:
+                output_audio_path.unlink()
+            except Exception:
+                pass
 
+        # Capped at 720p max height to dramatically speed up downloads
         ydl_opts = {
-            "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-            "outtmpl": str(output_video_path.with_suffix('')), # yt-dlp adds extension automatically based on format
+            "format": "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
             "merge_output_format": "mp4",
+            "outtmpl": f"{output_video_path.with_suffix('')}.%(ext)s",
             "quiet": False,
             "no_warnings": True,
+            "nocheckcertificate": True,
         }
         
         try:
-            # 1. Download video forcing MP4 container
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([video_url])
             
-            # Ensure output_video_path points to the actual generated file if extension adjusted
-            actual_video_file = output_video_path.with_suffix('.mp4')
-            if not actual_video_file.exists():
-                # Fallback search in output directory
-                files = list(output_video_path.parent.glob("temp_video.*"))
-                if files:
-                    actual_video_file = files[0]
+            possible_files = list(output_video_path.parent.glob("temp_video*"))
+            valid_files = [f for f in possible_files if f.is_file() and not f.name.endswith('.wav')]
             
-            print(f"[+] Successfully downloaded video to {actual_video_file}")
+            if not valid_files:
+                raise RuntimeError("Download completed, but no video file was found in the output directory.")
             
-            # 2. Extract audio into temp_audio.wav using ffmpeg (letting stderr print if error occurs)
+            actual_video_file = valid_files[0]
+            print(f"[+] Successfully located downloaded video: {actual_video_file}")
+            
+            # Extract audio track using ffmpeg
             print(f"[-] Extracting audio track to {output_audio_path}...")
             cmd = [
                 "ffmpeg", "-y",

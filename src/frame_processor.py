@@ -10,7 +10,7 @@ class FrameProcessor:
 
     @staticmethod
     def extract_optimal_frame(video_path: Path, timestamp: float, output_path: Path,
-                               search_window: float = 0.75) -> dict:
+                               search_window: float = 0.5) -> dict:  # Reduced default search window for speed
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
             raise RuntimeError(f"Could not open video: {video_path}")
@@ -24,7 +24,9 @@ class FrameProcessor:
         best_score = -1.0
         best_ts = timestamp
         t_ms = start_ms
-        step_ms = 1000 / fps
+        
+        # Optimization: Step by 2 frames at a time (or 1.5x fps interval) to cut processing time in half
+        step_ms = max(1000 / fps, 60.0) 
 
         while t_ms <= end_ms:
             cap.set(cv2.CAP_PROP_POS_MSEC, t_ms)
