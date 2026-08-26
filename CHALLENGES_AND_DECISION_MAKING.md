@@ -1,57 +1,46 @@
 # Engineering Challenges & Decision-Making Log
 
-This document records the technical bottlenecks encountered during the development of the audio-visual dialogue extractor and details the architectural solutions implemented to solve them.
+This document records the technical bottlenecks encountered during the development of the audio-visual dialogue extractor and details the architectural solutions implemented to solve them[cite: 3].
 
 ---
 
-## Challenge 1: Severe Latency During Transcription Initialization
+## Challenge 1: Unresolvable Network Request Blocks & Anti-Scraping Restrictions
 
-- **Issue:** Initial runs using OpenAI Whisper `base` with `word_timestamps=True` on media files (~400MB+) experienced high processing latency and hung for extended periods.
-- **Root Cause Analysis:** The execution environment defaulted to CPU execution due to a standard CPU-only PyTorch wheel installation. Generating word-level alignment requires frame-by-frame attention calculation, which is computationally expensive on a CPU.
-- **Decision & Solution:**
-  1. Updated model initialization to dynamically detect CUDA acceleration (`self.device = "cuda" if torch.cuda.is_available() else "cpu"`).
-  2. Enabled `fp16=True` execution inside `model.transcribe()` when running on CUDA to leverage GPU Tensor Cores.
-
----
-
-## Challenge 2: Redundant Network Media Downloads
-
-- **Issue:** Every execution cycle triggered a network download request, re-downloading large video files even when iteratively testing the same media asset.
-- **Root Cause Analysis:** Processing flows lacked file system state inspection prior to downloading.
-- **Decision & Solution:**
-  Created a helper utility (`get_or_download_media`) that inspects the designated output folder for existing, non-empty media assets (`temp_video.mp4` or `temp_audio.wav`) before invoking download functions:
-  ```python
-  if target_path.exists() and target_path.stat().st_size > 0:
-      return target_path  # Reuses existing file
-  ```
+* **Issue:** Direct video acquisition from local network environments was completely blocked by source platform rate limits, bot-detection challenge walls, and regional network restrictions.
+* **Root Cause Analysis:** Source streaming platforms enforce strict anti-automation policies that flag and drop direct automated client requests. Traditional client-side workarounds—including custom HTTP headers, proxy servers, and VPN routing—failed entirely because requests were flagged at the network infrastructure level.
+* **Decision & Solution:**
+  1. Decoupled media acquisition from local network execution by offloading video fetching and hosting to a **Hugging Face Space / Dataset**.
+  2. Configured the local processing pipeline to pull directly from public Hugging Face CDN endpoints (`/resolve/main/...`), ensuring unblocked, high-bandwidth media downloads independent of local network restrictions.
 
 ---
 
-## Challenge 3: PyTorch CUDA Package Compatibility on Python 3.13
+## Challenge 2: High Latency from Redundant Downloads & Heavy Model Load
 
-- **Issue:** Attempting to install PyTorch CUDA 12.1 packages on Python 3.13 via standard `pip` indexes produced the following error:
-  `ERROR: Could not find a version that satisfies the requirement torch`.
-- **Root Cause Analysis:** Official PyTorch CUDA 12.1 binary packages are not published for Python 3.13; PyTorch transitioned Python 3.13 CUDA distributions to CUDA 12.4 (`cu124`) index paths.
-- **Decision & Solution:**
-  Targeted the explicit CUDA 12.4 wheel repository during installation:
-  ```bash
-  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-  ```
+* **Issue:** Downloading large video files (~400MB+) on every run combined with repeatedly reloading the heavy OpenAI Whisper model caused severe execution delays and workflow friction[cite: 3].
+* **Root Cause Analysis:** Initial processing scripts lacked file system state checks prior to initiating downloads[cite: 3]. Furthermore, initializing the Whisper model on every execution cycle introduced unnecessary cold-start overhead. Attempting GPU acceleration via CUDA introduced driver instability and environment errors on Python 3.13, making optimized CPU execution with local caching the most reliable architecture.
+* **Decision & Solution:**
+  1. Implemented a local caching utility (`get_or_download_media`) that inspects the `output/` directory for existing media files (`temp_video.mp4` or `temp_audio.wav`) before triggering network calls[cite: 3]:
+     ```python
+     if target_path.exists() and target_path.stat().st_size > 0:
+         return target_path  # Reuses existing file
+     ```
+  2. Introduced class-level in-memory model caching (`_model_cache`) inside `DialogueTranscriber` to retain the loaded Whisper instance across multiple search queries, eliminating repetitive model loading times.
+
+---
+
+## Challenge 3: Millisecond Timestamp Precision & Frame-Accurate Cut Alignment
+
+* **Issue:** Coarse, whole-second timestamp extraction produced imprecise video cuts, often missing the exact visual frame where the target word was articulated.
+* **Root Cause Analysis:** Spoken dialogue occurs within rapid millisecond time windows. Low sampling resolution or whole-second timestamp rounding fails to isolate exact lip movements and spoken articulation, resulting in truncated or misaligned video clips.
+* **Decision & Solution:**
+  1. Enabled Whisper's `word_timestamps=True` mode to extract granular start and end time offsets (in seconds with millisecond decimal precision) for every transcribed word token.
+  2. Integrated high-FPS frame-mapping logic that converts millisecond acoustic boundaries directly into exact video frame numbers, ensuring the extracted segment captures the exact visual sequence corresponding to the target spoken phrase.
 
 ---
 
 ## Challenge 4: Audio Transcription Mismatches Breaking Exact Search Queries
 
-- **Issue:** Direct string match logic (`string == target`) regularly failed when speech-to-text outputs contained minor acoustic errors, missing punctuation, or slight phrase variations.
-- **Root Cause Analysis:** Speech recognition outputs depend heavily on background noise and speaker clarity, making exact string equality brittle.
-- **Decision & Solution:**
-  Implemented sliding-window fuzzy string matching via `rapidfuzz`. The window dynamically expands around the target length and computes similarity ratios across word token arrays to reliably locate phrases even with imperfect audio transcriptions.
-
----
-
-## Challenge 5: Local Network Requests Blocked at the Source Platform
-
-- **Issue:** Downloading source video directly from the local machine was unreliable — requests were increasingly met with bot-detection challenges and outright request blocking, regardless of client spoofing, cookie authentication, or retry logic.
-- **Root Cause Analysis:** The source platform applies escalating anti-automation measures at the network level (IP-based flags, JavaScript challenge walls, session verification) that specifically target direct, local, non-browser requests. This made local-only video acquisition fragile and inconsistent, independent of any application-level bug.
-- **Decision & Solution:**
-  Moved video ingestion off the local machine entirely by routing it through a **Hugging Face Space**, which handles fetching/uploading the source video in an environment not subject to the same local network restrictions. The pipeline then consumes the resulting media file locally for the remaining processing stages (audio extraction, transcription, matching, frame extraction), decoupling "acquiring the video" from "processing the video."
+* **Issue:** Direct string match logic (`string == target`) regularly failed when speech-to-text outputs contained minor acoustic errors, missing punctuation, filler words, or slight phrase variations[cite: 3].
+* **Root Cause Analysis:** Speech recognition outputs depend heavily on background noise, accents, and acoustic clarity, making strict string equality brittle[cite: 3].
+* **Decision & Solution:**
+  Implemented sliding-window fuzzy string matching using `rapidfuzz`[cite: 3]. The algorithm dynamically scans token windows around the target word count and calculates similarity ratios to accurately locate phrases despite minor transcript discrepancies[cite: 3].
